@@ -4,29 +4,9 @@
   <meta charset="utf-8">
   <title>Sake Table - Dashboard</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Smart Sake Table: zones, notes, CSV previews, and quick links.">
   <link rel="stylesheet" href="styles.css">
-
-  <!-- Chart.js for quick visualization -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <style>
-    /* Minimal helpers (won’t fight your styles.css) */
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 1rem; }
-    .card {
-      background:#fff; border-radius:1rem; padding:1rem; margin:1rem 0;
-      box-shadow:0 6px 18px rgba(2,8,23,.06);
-    }
-    .grid { display:grid; gap:1rem; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); }
-    .small { font-size:.9rem; color:#475569; }
-    table { width:100%; border-collapse: collapse; font-size:.9rem; }
-    th, td { border-top:1px solid #e2e8f0; padding:.5rem .4rem; text-align:left; }
-    th { background:#f8fafc; }
-    .error { color:#b91c1c; font-weight:600; }
-    canvas { width:100%; height:340px; }
-  </style>
+  <meta name="description" content="Smart Sake Table: zone links, notes, and live readings.">
 </head>
-
 <body>
   <header>
     <h1>Home</h1>
@@ -35,8 +15,6 @@
   <main>
     <div class="stage">
       <section class="layout">
-
-        <!-- ZONES (original layout preserved) -->
         <section class="zones" aria-label="Zones">
           <a class="zone" href="zone1.html" role="button" aria-label="Zone 1">Zone 1</a>
           <a class="zone" href="zone2.html" role="button" aria-label="Zone 2">Zone 2</a>
@@ -46,7 +24,6 @@
           <a class="zone" href="zone6.html" role="button" aria-label="Zone 6">Zone 6</a>
         </section>
 
-        <!-- NOTES -->
         <div class="notes-wrap">
           <div class="notes__meta" id="notes-meta" aria-live="polite">Date, Time</div>
           <div class="notes" aria-label="Notes">
@@ -55,45 +32,13 @@
           </div>
         </div>
 
-        <!-- LONG PANELS -->
         <div class="left">
           <div class="long long--top-left">Temperature over time</div>
           <div class="long long--top-left">Humidity over time</div>
           <div class="long long--top-left">Fans on/off over time</div>
         </div>
-
       </section>
 
-      <!-- NEW: CSV Preview + Auto Chart -->
-      <section class="wrap" aria-label="Data previews">
-
-        <div class="grid">
-
-          <!-- Temperature readings preview + chart -->
-          <article class="card">
-            <h2 style="margin:.2rem 0 .6rem">Temperature Readings (data/temperature_readings.csv)</h2>
-            <div id="temp-table-wrap" class="small">Loading preview…</div>
-
-            <div style="margin-top:.75rem">
-              <canvas id="tempChart" aria-label="Temperature chart" role="img"></canvas>
-              <div class="small" id="tempChart-note"></div>
-            </div>
-          </article>
-
-          <!-- Target temperatures preview -->
-          <article class="card">
-            <h2 style="margin:.2rem 0 .6rem">Target Temperatures (data/sample_target_temperatures.csv)</h2>
-            <div id="target-table-wrap" class="small">Loading preview…</div>
-          </article>
-
-        </div>
-
-        <p class="small">
-          Tip: CSV headers like <code>timestamp,zone,temperature</code> produce the cleanest charts.
-        </p>
-      </section>
-
-      <!-- TEMP TILES (original layout preserved) -->
       <section class="temp-row" aria-label="Temperature readings">
         <div class="temp">
           <span class="temp__label">Temp 1</span>
@@ -123,176 +68,31 @@
     </div>
   </main>
 
-  <!-- Live Date/Time script -->
+  <!-- Live Date/Time script: updates the .notes__meta element each minute -->
   <script>
   (function(){
     const el = document.getElementById('notes-meta');
     if(!el) return;
 
     function formatNow(d){
-      const date = d.toLocaleDateString(undefined,{ month:'short', day:'numeric', year:'numeric' });
-      const time = d.toLocaleTimeString(undefined,{ hour:'2-digit', minute:'2-digit' });
-      return date + ' — ' + time;
+      const date = d.toLocaleDateString(undefined,{ month: 'short', day: 'numeric', year: 'numeric' });
+      const time = d.toLocaleTimeString(undefined,{ hour: '2-digit', minute: '2-digit' });
+      return `${date} — ${time}`;
     }
 
     function update(){ el.textContent = formatNow(new Date()); }
     update();
 
     const msToNext = 60000 - (Date.now() % 60000);
-    let timer = setTimeout(function(){ update(); timer = setInterval(update, 60000); }, msToNext);
+    let timer = setTimeout(function(){
+      update();
+      timer = setInterval(update, 60000);
+    }, msToNext);
 
     document.addEventListener('visibilitychange', function(){
       if(document.visibilityState === 'visible') update();
     });
   })();
   </script>
-
-  <!-- CSV preview + auto chart script -->
-  <script>
-  // Very small CSV parser
-  function parseCSV(text) {
-    const lines = text.trim().split(/\r?\n/);
-    if (!lines.length) return { headers: [], rows: [] };
-
-    const headers = lines[0].split(',').map(h => h.trim());
-    const rows = lines.slice(1).map(line => {
-      const cells = line.split(',').map(c => c.trim());
-      const obj = {};
-      headers.forEach((h, i) => obj[h] = cells[i] ?? "");
-      return obj;
-    });
-    return { headers, rows };
-  }
-
-  function buildTable(container, headers, rows, limit=10) {
-    if (!headers.length || !rows.length) {
-      container.innerHTML = '<span class="error">No data</span>';
-      return;
-    }
-
-    const tbl = document.createElement('table');
-    const thead = document.createElement('thead');
-    const trh = document.createElement('tr');
-    headers.forEach(h => {
-      const th = document.createElement('th');
-      th.textContent = h;
-      trh.appendChild(th);
-    });
-    thead.appendChild(trh);
-    tbl.appendChild(thead);
-
-    const tbody = document.createElement('tbody');
-    const start = Math.max(0, rows.length - limit);
-
-    for (let i = start; i < rows.length; i++) {
-      const tr = document.createElement('tr');
-      headers.forEach(h => {
-        const td = document.createElement('td');
-        td.textContent = rows[i][h] ?? "";
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    }
-
-    tbl.appendChild(tbody);
-    container.innerHTML = "";
-    container.appendChild(tbl);
-
-    const note = document.createElement('div');
-    note.className = 'small';
-    note.textContent = `Showing last ${rows.length - start} of ${rows.length} rows`;
-    container.appendChild(note);
-  }
-
-  function detectColumns(headers, rows) {
-    const timeCandidates = ['timestamp','time','date','datetime'];
-    let timeKey = headers.find(h => timeCandidates.includes(h.toLowerCase()));
-    let numKey = null;
-
-    if (rows.length) {
-      const last = rows[rows.length - 1];
-      for (const h of headers) {
-        const v = parseFloat(last[h]);
-        if (!Number.isNaN(v)) { numKey = h; break; }
-      }
-    }
-
-    const tempPref = headers.find(h => /temp/gi.test(h));
-    if (tempPref) numKey = tempPref;
-
-    return { timeKey, numKey };
-  }
-
-  function makeLineChart(canvasId, labels, values, labelText) {
-    new Chart(document.getElementById(canvasId), {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: labelText,
-          data: values,
-          borderWidth: 2,
-          tension: .2,
-          pointRadius: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: { ticks: { autoSkip: true, maxTicksLimit: 6 }},
-          y: { beginAtZero: false }
-        }
-      }
-    });
-  }
-
-  async function loadCSV(path, wrapID) {
-    const container = document.getElementById(wrapID);
-    try {
-      const res = await fetch(path, { cache:"no-store" });
-      const txt = await res.text();
-      const { headers, rows } = parseCSV(txt);
-      buildTable(container, headers, rows);
-      return { headers, rows };
-    } catch(e) {
-      container.innerHTML = `<span class="error">Failed to load ${path}</span>`;
-      return { headers:[], rows:[] };
-    }
-  }
-
-  (async function loadData() {
-    const tempData = await loadCSV("data/temperature_readings.csv", "temp-table-wrap");
-    await loadCSV("data/sample_target_temperatures.csv", "target-table-wrap");
-
-    if (!tempData.rows.length) return;
-
-    const { headers, rows } = tempData;
-    const { timeKey, numKey } = detectColumns(headers, rows);
-
-    if (!numKey) {
-      document.getElementById('tempChart-note').innerHTML =
-        '<span class="error">Could not find a numeric column to chart.</span>';
-      return;
-    }
-
-    let labels = [];
-    if (timeKey) {
-      labels = rows.map(r => r[timeKey] || "");
-    } else {
-      labels = rows.map((_, i) => i + 1);
-    }
-
-    const values = rows.map(r => parseFloat(r[numKey]) || null);
-
-    makeLineChart("tempChart", labels.slice(-100), values.slice(-100), numKey);
-
-    const note = document.getElementById('tempChart-note');
-    note.textContent = timeKey
-      ? `Charting "${numKey}" over "${timeKey}" (last ${Math.min(100, rows.length)} rows)`
-      : `Charting "${numKey}" vs. row index (last ${Math.min(100, rows.length)} rows)`;
-  })();
-  </script>
-
 </body>
 </html>
